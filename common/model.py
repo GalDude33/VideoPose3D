@@ -29,8 +29,8 @@ class TemporalModelBase(nn.Module):
         self.relu = nn.ReLU(inplace=True)
         
         self.pad = [ filter_widths[0] // 2 ]
-        self.expand_bn = nn.BatchNorm1d(channels, momentum=0.1)
-        self.shrink = nn.Conv1d(channels, num_joints_out*3, 1)
+        self.expand_bn = nn.BatchNorm2d(channels, momentum=0.1)
+        self.shrink = nn.Conv2d(channels, num_joints_out*3, (1,1))
         
 
     def set_bn_momentum(self, momentum):
@@ -69,7 +69,9 @@ class TemporalModelBase(nn.Module):
         x = x.view(x.shape[0], x.shape[1], -1)
         x = x.permute(0, 2, 1)
         
+        x = x.unsqueeze(-1)
         x = self._forward_blocks(x)
+        x = x[..., 0]
         
         x = x.permute(0, 2, 1)
         x = x.view(sz[0], -1, self.num_joints_out, 3)
@@ -99,7 +101,7 @@ class TemporalModel(TemporalModelBase):
         """
         super().__init__(num_joints_in, in_features, num_joints_out, filter_widths, causal, dropout, channels)
         
-        self.expand_conv = nn.Conv1d(num_joints_in*in_features, channels, filter_widths[0], bias=False)
+        self.expand_conv = nn.Conv2d(num_joints_in*in_features, channels, (filter_widths[0], 1), bias=False)
         
         layers_conv = []
         layers_bn = []
@@ -110,13 +112,13 @@ class TemporalModel(TemporalModelBase):
             self.pad.append((filter_widths[i] - 1)*next_dilation // 2)
             self.causal_shift.append((filter_widths[i]//2 * next_dilation) if causal else 0)
             
-            layers_conv.append(nn.Conv1d(channels, channels,
-                                         filter_widths[i] if not dense else (2*self.pad[-1] + 1),
+            layers_conv.append(nn.Conv2d(channels, channels,
+                                         (filter_widths[i] if not dense else (2*self.pad[-1] + 1), 1),
                                          dilation=next_dilation if not dense else 1,
                                          bias=False))
-            layers_bn.append(nn.BatchNorm1d(channels, momentum=0.1))
-            layers_conv.append(nn.Conv1d(channels, channels, 1, dilation=1, bias=False))
-            layers_bn.append(nn.BatchNorm1d(channels, momentum=0.1))
+            layers_bn.append(nn.BatchNorm2d(channels, momentum=0.1))
+            layers_conv.append(nn.Conv2d(channels, channels, (1, 1), dilation=1, bias=False))
+            layers_bn.append(nn.BatchNorm2d(channels, momentum=0.1))
             
             next_dilation *= filter_widths[i]
             
@@ -129,14 +131,16 @@ class TemporalModel(TemporalModelBase):
         for i in range(len(self.pad) - 1):
             pad = self.pad[i+1]
             shift = self.causal_shift[i+1]
-            res = x[:, :, pad + shift : x.shape[2] - pad + shift]
-            
+
+            res = x.permute((0, 2, 1, 3))[:, pad + shift : x.shape[2] - pad + shift, :, :]
+            res = res.permute((0, 2, 1, 3))
+
             x = self.drop(self.relu(self.layers_bn[2*i](self.layers_conv[2*i](x))))
             x = res + self.drop(self.relu(self.layers_bn[2*i + 1](self.layers_conv[2*i + 1](x))))
         
         x = self.shrink(x)
         return x
-    
+
 class TemporalModelOptimized1f(TemporalModelBase):
     """
     3D pose estimation model optimized for single-frame batching, i.e.
@@ -164,7 +168,7 @@ class TemporalModelOptimized1f(TemporalModelBase):
         """
         super().__init__(num_joints_in, in_features, num_joints_out, filter_widths, causal, dropout, channels)
         
-        self.expand_conv = nn.Conv1d(num_joints_in*in_features, channels, filter_widths[0], stride=filter_widths[0], bias=False)
+        self.expand_conv = nn.Conv2d(num_joints_in*in_features, channels, (filter_widths[0], 1), stride=filter_widths[0], bias=False)
         
         layers_conv = []
         layers_bn = []
@@ -175,10 +179,10 @@ class TemporalModelOptimized1f(TemporalModelBase):
             self.pad.append((filter_widths[i] - 1)*next_dilation // 2)
             self.causal_shift.append((filter_widths[i]//2) if causal else 0)
             
-            layers_conv.append(nn.Conv1d(channels, channels, filter_widths[i], stride=filter_widths[i], bias=False))
-            layers_bn.append(nn.BatchNorm1d(channels, momentum=0.1))
-            layers_conv.append(nn.Conv1d(channels, channels, 1, dilation=1, bias=False))
-            layers_bn.append(nn.BatchNorm1d(channels, momentum=0.1))
+            layers_conv.append(nn.Conv2d(channels, channels, (filter_widths[i], 1), stride=filter_widths[i], bias=False))
+            layers_bn.append(nn.BatchNorm2d(channels, momentum=0.1))
+            layers_conv.append(nn.Conv2d(channels, channels, (1,1), dilation=1, bias=False))
+            layers_bn.append(nn.BatchNorm2d(channels, momentum=0.1))
             next_dilation *= filter_widths[i]
             
         self.layers_conv = nn.ModuleList(layers_conv)
@@ -188,7 +192,7 @@ class TemporalModelOptimized1f(TemporalModelBase):
         x = self.drop(self.relu(self.expand_bn(self.expand_conv(x))))
         
         for i in range(len(self.pad) - 1):
-            res = x[:, :, self.causal_shift[i+1] + self.filter_widths[i+1]//2 :: self.filter_widths[i+1]]
+            res = x[:, :, self.causal_shift[i+1] + self.filter_widths[i+1]//2 :: self.filter_widths[i+1], :]
             
             x = self.drop(self.relu(self.layers_bn[2*i](self.layers_conv[2*i](x))))
             x = res + self.drop(self.relu(self.layers_bn[2*i + 1](self.layers_conv[2*i + 1](x))))
