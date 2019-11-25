@@ -183,6 +183,9 @@ model_pos = TemporalModel(poses_valid_2d[0].shape[-2], poses_valid_2d[0].shape[-
                             filter_widths=filter_widths, causal=args.causal, dropout=args.dropout, channels=args.channels,
                             dense=args.dense)
 
+dummy_input = torch.rand(1, 27, 17, 2)
+torch.onnx.export(model_pos, dummy_input, "VideoPose3D_243.onnx", verbose=True)
+
 receptive_field = model_pos.receptive_field()
 print('INFO: Receptive field: {} frames'.format(receptive_field))
 pad = (receptive_field - 1) // 2 # Padding on each side
@@ -242,6 +245,7 @@ if not args.evaluate:
         
         losses_2d_train_unlabeled = []
         losses_2d_train_labeled_eval = []
+        losses_2dfake_train_labeled_eval = []
         losses_2d_train_unlabeled_eval = []
         losses_2d_valid = []
 
@@ -468,6 +472,8 @@ if not args.evaluate:
                 epoch_loss_3d_train_eval = 0
                 epoch_loss_traj_train_eval = 0
                 epoch_loss_2d_train_labeled_eval = 0
+                epoch_loss_2dfake_train_labeled_eval = 0
+
                 N = 0
                 for cam, batch, batch_2d in train_generator_eval.next_epoch():
                     if batch_2d.shape[1] == 0:
@@ -503,13 +509,18 @@ if not args.evaluate:
                             target = inputs_2d[:, :, :, :2].contiguous()
                         reconstruction = project_to_2d(predicted_3d_pos + predicted_traj, cam)
                         loss_reconstruction = mpjpe(reconstruction, target)
+                        loss_reconstruction_fake = mpjpe(inputs_2d[-1], target)
+                        
                         epoch_loss_2d_train_labeled_eval += reconstruction.shape[0]*reconstruction.shape[1] * loss_reconstruction.item()
+                        epoch_loss_2dfake_train_labeled_eval += reconstruction.shape[0]*reconstruction.shape[1] * loss_reconstruction_fake.item()
+
                         assert reconstruction.shape[0]*reconstruction.shape[1] == inputs_3d.shape[0]*inputs_3d.shape[1]
 
                 losses_3d_train_eval.append(epoch_loss_3d_train_eval / N)
                 if semi_supervised:
                     losses_traj_train_eval.append(epoch_loss_traj_train_eval / N)
                     losses_2d_train_labeled_eval.append(epoch_loss_2d_train_labeled_eval / N)
+                    losses_2dfake_train_labeled_eval.append(epoch_loss_2dfake_train_labeled_eval / N)
 
                 # Evaluate 2D loss on unlabeled training set (in evaluation mode)
                 epoch_loss_2d_train_unlabeled_eval = 0
@@ -547,7 +558,7 @@ if not args.evaluate:
         else:
             if semi_supervised:
                 print('[%d] time %.2f lr %f 3d_train %f 3d_eval %f traj_eval %f 3d_valid %f '
-                      'traj_valid %f 2d_train_sup %f 2d_train_unsup %f 2d_valid %f' % (
+                      'traj_valid %f 2d_train_sup %f 2dfake_train_sup %f 2d_train_unsup %f 2d_valid %f' % (
                         epoch + 1,
                         elapsed,
                         lr,
@@ -557,6 +568,7 @@ if not args.evaluate:
                         losses_3d_valid[-1] * 1000,
                         losses_traj_valid[-1] * 1000,
                         losses_2d_train_labeled_eval[-1],
+                        losses_2dfake_train_labeled_eval[-1],
                         losses_2d_train_unlabeled_eval[-1],
                         losses_2d_valid[-1]))
             else:
