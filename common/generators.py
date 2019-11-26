@@ -31,7 +31,7 @@ class ChunkedGenerator:
                  chunk_length, pad=0, causal_shift=0,
                  shuffle=True, random_seed=1234,
                  augment=False, kps_left=None, kps_right=None, joints_left=None, joints_right=None,
-                 endless=False):
+                 endless=False, augment_noise=0, augment_drop=0):
         assert poses_3d is None or len(poses_3d) == len(poses_2d), (len(poses_3d), len(poses_2d))
         assert cameras is None or len(cameras) == len(poses_2d)
     
@@ -42,10 +42,10 @@ class ChunkedGenerator:
             n_chunks = (poses_2d[i].shape[0] + chunk_length - 1) // chunk_length
             offset = (n_chunks * chunk_length - poses_2d[i].shape[0]) // 2
             bounds = np.arange(n_chunks+1)*chunk_length - offset
-            augment_vector = np.full(len(bounds - 1), False, dtype=bool)
-            pairs += zip(np.repeat(i, len(bounds - 1)), bounds[:-1], bounds[1:], augment_vector)
+            augment_flip_vector = np.full(len(bounds - 1), False, dtype=bool)
+            pairs += zip(np.repeat(i, len(bounds - 1)), bounds[:-1], bounds[1:], augment_flip_vector)
             if augment:
-                pairs += zip(np.repeat(i, len(bounds - 1)), bounds[:-1], bounds[1:], ~augment_vector)
+                pairs += zip(np.repeat(i, len(bounds - 1)), bounds[:-1], bounds[1:], ~augment_flip_vector)
 
         # Initialize buffers
         if cameras is not None:
@@ -73,6 +73,9 @@ class ChunkedGenerator:
         self.kps_right = kps_right
         self.joints_left = joints_left
         self.joints_right = joints_right
+
+        self.augment_noise = augment_noise
+        self.augment_drop = augment_drop
         
     def num_frames(self):
         return self.num_batches * self.batch_size
@@ -121,6 +124,15 @@ class ChunkedGenerator:
                         # Flip 2D keypoints
                         self.batch_2d[i, :, :, 0] *= -1
                         self.batch_2d[i, :, self.kps_left + self.kps_right] = self.batch_2d[i, :, self.kps_right + self.kps_left]
+
+                    if self.augment_noise:
+                        # Flip 2D keypoints
+                        self.batch_2d += np.random.normal(loc=0, scale=self.augment_noise, size=self.batch_2d.shape)
+
+                    # if self.augment_drop:
+                    #     # Flip 2D keypoints
+                    #     self.batch_2d[i, :, :, 0] *= -1
+                    #     self.batch_2d[i, :, self.kps_left + self.kps_right] = self.batch_2d[i, :, self.kps_right + self.kps_left]
 
                     # 3D poses
                     if self.poses_3d is not None:
