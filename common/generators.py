@@ -95,6 +95,11 @@ class ChunkedGenerator:
                 pairs = self.random.permutation(self.pairs)
             else:
                 pairs = self.pairs
+
+            if self.augment_noise:
+                # Flip 2D keypoints
+                self.batch_2d += np.random.normal(loc=0, scale=self.augment_noise, size=self.batch_2d.shape)
+            
             return 0, pairs
         else:
             return self.state
@@ -124,10 +129,6 @@ class ChunkedGenerator:
                         # Flip 2D keypoints
                         self.batch_2d[i, :, :, 0] *= -1
                         self.batch_2d[i, :, self.kps_left + self.kps_right] = self.batch_2d[i, :, self.kps_right + self.kps_left]
-
-                    if self.augment_noise:
-                        # Flip 2D keypoints
-                        self.batch_2d += np.random.normal(loc=0, scale=self.augment_noise, size=self.batch_2d.shape)
 
                     # if self.augment_drop:
                     #     # Flip 2D keypoints
