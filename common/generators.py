@@ -52,7 +52,7 @@ class ChunkedGenerator:
             self.batch_cam = np.empty((batch_size, cameras[0].shape[-1]))
         if poses_3d is not None:
             self.batch_3d = np.empty((batch_size, chunk_length, poses_3d[0].shape[-2], poses_3d[0].shape[-1]))
-        self.batch_2d = np.empty((batch_size, chunk_length + 2*pad, poses_2d[0].shape[-2], poses_2d[0].shape[-1]))
+        self.batch_2d = np.empty((batch_size, chunk_length + pad, poses_2d[0].shape[-2], poses_2d[0].shape[-1]))
 
         self.num_batches = (len(pairs) + batch_size - 1) // batch_size
         self.batch_size = batch_size
@@ -65,7 +65,7 @@ class ChunkedGenerator:
         self.state = None
         
         self.cameras = cameras
-        self.poses_3d = poses_3d
+        #self.poses_3d = poses_3d
         self.poses_2d = poses_2d
         
         self.augment = augment
@@ -111,7 +111,7 @@ class ChunkedGenerator:
             for b_i in range(start_idx, self.num_batches):
                 chunks = pairs[b_i*self.batch_size : (b_i+1)*self.batch_size]
                 for i, (seq_i, start_3d, end_3d, flip) in enumerate(chunks):
-                    start_2d = start_3d - self.pad - self.causal_shift
+                    start_2d = start_3d + (- self.pad - self.causal_shift) // 2
                     end_2d = end_3d + self.pad - self.causal_shift
 
                     # 2D poses
@@ -135,24 +135,6 @@ class ChunkedGenerator:
                     #     self.batch_2d[i, :, :, 0] *= -1
                     #     self.batch_2d[i, :, self.kps_left + self.kps_right] = self.batch_2d[i, :, self.kps_right + self.kps_left]
 
-                    # 3D poses
-                    if self.poses_3d is not None:
-                        seq_3d = self.poses_3d[seq_i]
-                        low_3d = max(start_3d, 0)
-                        high_3d = min(end_3d, seq_3d.shape[0])
-                        pad_left_3d = low_3d - start_3d
-                        pad_right_3d = end_3d - high_3d
-                        if pad_left_3d != 0 or pad_right_3d != 0:
-                            self.batch_3d[i] = np.pad(seq_3d[low_3d:high_3d], ((pad_left_3d, pad_right_3d), (0, 0), (0, 0)), 'edge')
-                        else:
-                            self.batch_3d[i] = seq_3d[low_3d:high_3d]
-
-                        if flip:
-                            # Flip 3D joints
-                            self.batch_3d[i, :, :, 0] *= -1
-                            self.batch_3d[i, :, self.joints_left + self.joints_right] = \
-                                    self.batch_3d[i, :, self.joints_right + self.joints_left]
-
                     # Cameras
                     if self.cameras is not None:
                         self.batch_cam[i] = self.cameras[seq_i]
@@ -161,6 +143,7 @@ class ChunkedGenerator:
                             self.batch_cam[i, 2] *= -1
                             self.batch_cam[i, 7] *= -1
 
+                self.poses_3d = None
                 if self.endless:
                     self.state = (b_i + 1, pairs)
                 if self.poses_3d is None and self.cameras is None:
@@ -230,9 +213,9 @@ class UnchunkedGenerator:
         for seq_cam, seq_3d, seq_2d in zip_longest(self.cameras, self.poses_3d, self.poses_2d):
             batch_cam = None if seq_cam is None else np.expand_dims(seq_cam, axis=0)
             batch_3d = None if seq_3d is None else np.expand_dims(seq_3d, axis=0)
-            batch_2d = np.expand_dims(np.pad(seq_2d,
-                            ((self.pad + self.causal_shift, self.pad - self.causal_shift), (0, 0), (0, 0)),
-                            'edge'), axis=0)
+            batch_2d = seq_2d #np.expand_dims(np.pad(seq_2d,
+                            #((self.pad + self.causal_shift, self.pad - self.causal_shift), (0, 0), (0, 0)),
+                            #'edge'), axis=0)
             if self.augment:
                 # Append flipped version
                 if batch_cam is not None:
