@@ -369,9 +369,7 @@ if not args.evaluate:
         # Decay BatchNorm momentum
         momentum = initial_momentum * np.exp(-epoch/args.epochs * np.log(initial_momentum/final_momentum))
         model_pos_train.set_bn_momentum(momentum)
-        if semi_supervised:
-            model_traj_train.set_bn_momentum(momentum)
-            
+       
         # Save checkpoint if necessary
         if epoch % args.checkpoint_frequency == 0:
             chk_path = os.path.join(args.checkpoint, 'epoch_{}.bin'.format(epoch))
