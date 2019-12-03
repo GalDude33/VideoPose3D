@@ -357,7 +357,7 @@ if not args.evaluate:
                     losses_2d_train_noise[-1] * 1000,
                     losses_2d_train_eval[-1] * 1000,
                     losses_2d_train_eval_noise[-1] * 1000,
-                    losses_2d_valid[-1] * 1000),
+                    losses_2d_valid[-1] * 1000,
                     losses_2d_valid_noise[-1] * 1000)
         
         # Decay learning rate exponentially
