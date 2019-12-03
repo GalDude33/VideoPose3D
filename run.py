@@ -261,12 +261,13 @@ if not args.evaluate:
             optimizer.zero_grad()
 
             # Compute 2D poses
-            target_2d = inputs_2d[:, pad:, :, :2].contiguous()
+            target_2d = inputs_2d[:, pad:, :, :2].clone().detach().contiguous()
             inputs_2d[:, pad:, 5, :2] += torch.clamp(torch.zeros_like(inputs_2d[:, pad:, 5, :2]).normal_(mean=0, std=noise_std), 0.0, 1.0)
             predicted_2d_pos = model_pos_train(inputs_2d)
             loss_2d_pos = mpjpe(predicted_2d_pos, target_2d) # On 2D poses
+            loss_2d_pos_noise = mpjpe(inputs_2d[:, pad:, :, :2], target_2d) # On 2D poses
             epoch_loss_2d_train += inputs_2d.shape[0] * inputs_2d.shape[1] * loss_2d_pos.item()
-            epoch_loss_2d_train_noise += inputs_2d.shape[0] * inputs_2d.shape[1] * mpjpe(inputs_2d[:, pad:, :, :2], target_2d).item() # On 2D poses
+            epoch_loss_2d_train_noise += inputs_2d.shape[0] * inputs_2d.shape[1] * loss_2d_pos_noise.item() # On 2D poses
             
             N += inputs_2d.shape[0] * inputs_2d.shape[1]
 
@@ -295,15 +296,15 @@ if not args.evaluate:
 
                     # Predict 2D poses
                     # Compute 2D poses
-                    target_semi = inputs_2d[:, pad:, :, :2].contiguous()
+                    target_semi = inputs_2d[:, pad:, :, :2].clone().detach().contiguous()
                     inputs_2d[:, pad:, 5, :2] += torch.clamp(torch.zeros_like(inputs_2d[:, pad:, 5, :2]).normal_(mean=0, std=noise_std), 0.0, 1.0)
 
                     predicted_2d_pos = model_pos(inputs_2d)
                     loss_2d_pos = mpjpe(predicted_2d_pos, target_semi)
                     loss_2d_pos_noise = mpjpe(inputs_2d[:, pad:, :, :2], target_semi)
                     
-                    epoch_loss_2d_valid += loss_2d_pos.item()
-                    epoch_loss_2d_valid_noise += loss_2d_pos_noise.item()
+                    epoch_loss_2d_valid += inputs_2d.shape[0] * inputs_2d.shape[1] * loss_2d_pos.item()
+                    epoch_loss_2d_valid_noise += inputs_2d.shape[0] * inputs_2d.shape[1] * loss_2d_pos_noise.item()
 
                     N += inputs_2d.shape[0] * inputs_2d.shape[1]
 
@@ -324,7 +325,7 @@ if not args.evaluate:
                     if torch.cuda.is_available():
                         inputs_2d = inputs_2d.cuda()
 
-                    target_2d = inputs_2d[:, pad:, :, :2].contiguous()
+                    target_2d = inputs_2d[:, pad:, :, :2].clone().detach().contiguous()
                     inputs_2d[:, pad:, 5, :2] += torch.clamp(torch.zeros_like(inputs_2d[:, pad:, 5, :2]).normal_(mean=0, std=noise_std), 0.0, 1.0)
                     
                     # Compute 3D poses
