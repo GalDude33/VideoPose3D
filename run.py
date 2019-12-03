@@ -307,8 +307,8 @@ if not args.evaluate:
 
                     N += inputs_2d.shape[0] * inputs_2d.shape[1]
 
-                losses_2d_train_eval.append(epoch_loss_2d_valid / N)
-                losses_2d_train_eval_noise.append(epoch_loss_2d_valid_noise / N)
+                losses_2d_valid.append(epoch_loss_2d_valid / N)
+                losses_2d_valid_noise.append(epoch_loss_2d_valid_noise / N)
 
                 # Evaluate on training set, this time in evaluation mode
                 epoch_loss_2d_train_eval = 0
