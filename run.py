@@ -204,8 +204,8 @@ if args.resume or args.evaluate:
 # dummy_input = torch.rand(1, 34, 27, 1)
 # torch.onnx.export(model_pos, dummy_input, "VideoPose3D_243.onnx", verbose=True)
 
-test_generator = ChunkedGenerator(cameras_valid, poses_valid, poses_valid_2d,
-                                    pad=pad, causal_shift=causal_shift, augment=False,
+test_generator = ChunkedGenerator(args.batch_size//args.stride, cameras_valid, poses_valid, poses_valid_2d, args.stride,
+                                    pad=pad, causal_shift=causal_shift, augment=False, shuffle=False,
                                     kps_left=kps_left, kps_right=kps_right, joints_left=joints_left, joints_right=joints_right)
 print('INFO: Testing on {} frames'.format(test_generator.num_frames()))
 
@@ -232,8 +232,9 @@ if not args.evaluate:
     train_generator = ChunkedGenerator(args.batch_size//args.stride, cameras_train, poses_train, poses_train_2d, args.stride,
                                        pad=pad, causal_shift=causal_shift, shuffle=True, augment=args.data_augmentation,
                                        kps_left=kps_left, kps_right=kps_right, joints_left=joints_left, joints_right=joints_right)
-    train_generator_eval = ChunkedGenerator(cameras_train, poses_train, poses_train_2d,
-                                              pad=pad, causal_shift=causal_shift, augment=False)
+    train_generator_eval = ChunkedGenerator(args.batch_size//args.stride, cameras_train, poses_train, poses_train_2d, args.stride,
+                                              pad=pad, causal_shift=causal_shift, shuffle=False, augment=False, 
+                                              kps_left=kps_left, kps_right=kps_right, joints_left=joints_left, joints_right=joints_right)
     print('INFO: Training on {} frames'.format(train_generator_eval.num_frames()))
 
     if args.resume:
