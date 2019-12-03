@@ -262,7 +262,7 @@ if not args.evaluate:
 
             # Compute 2D poses
             target_2d = inputs_2d[:, pad:, :, :2].clone().detach().contiguous()
-            inputs_2d[:, pad:, 5, :2] += torch.clamp(torch.zeros_like(inputs_2d[:, pad:, 5, :2]).normal_(mean=0, std=noise_std), 0.0, 1.0)
+            inputs_2d[:, pad:, 5, :2] += torch.clamp(torch.zeros_like(inputs_2d[:, pad:, 5, :2]).normal_(mean=0, std=noise_std), -1.0, 1.0)
             predicted_2d_pos = model_pos_train(inputs_2d)
             loss_2d_pos = mpjpe(predicted_2d_pos, target_2d) # On 2D poses
             loss_2d_pos_noise = mpjpe(inputs_2d[:, pad:, :, :2], target_2d) # On 2D poses
@@ -297,7 +297,7 @@ if not args.evaluate:
                     # Predict 2D poses
                     # Compute 2D poses
                     target_semi = inputs_2d[:, pad:, :, :2].clone().detach().contiguous()
-                    inputs_2d[:, pad:, 5, :2] += torch.clamp(torch.zeros_like(inputs_2d[:, pad:, 5, :2]).normal_(mean=0, std=noise_std), 0.0, 1.0)
+                    inputs_2d[:, pad:, 5, :2] += torch.clamp(torch.zeros_like(inputs_2d[:, pad:, 5, :2]).normal_(mean=0, std=noise_std), -1.0, 1.0)
 
                     predicted_2d_pos = model_pos(inputs_2d)
                     loss_2d_pos = mpjpe(predicted_2d_pos, target_semi)
@@ -326,7 +326,7 @@ if not args.evaluate:
                         inputs_2d = inputs_2d.cuda()
 
                     target_2d = inputs_2d[:, pad:, :, :2].clone().detach().contiguous()
-                    inputs_2d[:, pad:, 5, :2] += torch.clamp(torch.zeros_like(inputs_2d[:, pad:, 5, :2]).normal_(mean=0, std=noise_std), 0.0, 1.0)
+                    inputs_2d[:, pad:, 5, :2] += torch.clamp(torch.zeros_like(inputs_2d[:, pad:, 5, :2]).normal_(mean=0, std=noise_std), -1.0, 1.0)
                     
                     # Compute 3D poses
                     predicted_2d_pos = model_pos(inputs_2d)
@@ -416,8 +416,8 @@ def evaluate(test_generator, action=None, return_predictions=False):
             if torch.cuda.is_available():
                 inputs_2d = inputs_2d.cuda()
 
-            target_2d = inputs_2d[:, pad:, :, :2].contiguous()
-            inputs_2d[:, pad:, 5, :2] += torch.clamp(torch.zeros_like(inputs_2d[:, pad:, 5, :2]).normal_(mean=0, std=noise_std), 0.0, 1.0)
+            target_2d = inputs_2d[:, pad:, :, :2].clone().detach().contiguous()
+            inputs_2d[:, pad:, 5, :2] += torch.clamp(torch.zeros_like(inputs_2d[:, pad:, 5, :2]).normal_(mean=0, std=noise_std), -1.0, 1.0)
             # Positional model
             predicted_2d_pos = model_pos(inputs_2d)
 
