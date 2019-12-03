@@ -73,6 +73,7 @@ joints_left, joints_right = list(dataset.skeleton().joints_left()), list(dataset
 keypoints = keypoints['positions_2d'].item()
 
 noise_std = 0.02
+predicted_joint = slice(predicted_joint, predicted_joint+1)
 
 for subject in dataset.subjects():
     assert subject in keypoints, 'Subject {} is missing from the 2D detections dataset'.format(subject)
@@ -158,15 +159,15 @@ cameras_valid, poses_valid, poses_valid_2d = fetch(subjects_test, action_filter)
 filter_widths = [int(x) for x in args.architecture.split(',')]
 if not args.disable_optimizations and not args.dense and args.stride == 1:
     # Use optimized model for single-frame predictions
-    model_pos_train = TemporalModelOptimized1f(poses_valid_2d[0].shape[-2], poses_valid_2d[0].shape[-1], dataset.skeleton().num_joints(),
+    model_pos_train = TemporalModelOptimized1f(poses_valid_2d[0].shape[-2], poses_valid_2d[0].shape[-1], 1, #dataset.skeleton().num_joints(),
                                 filter_widths=filter_widths, causal=args.causal, dropout=args.dropout, channels=args.channels)
 else:
     # When incompatible settings are detected (stride > 1, dense filters, or disabled optimization) fall back to normal model
-    model_pos_train = TemporalModel(poses_valid_2d[0].shape[-2], poses_valid_2d[0].shape[-1], dataset.skeleton().num_joints(),
+    model_pos_train = TemporalModel(poses_valid_2d[0].shape[-2], poses_valid_2d[0].shape[-1], 1, #dataset.skeleton().num_joints(),
                                 filter_widths=filter_widths, causal=args.causal, dropout=args.dropout, channels=args.channels,
                                 dense=args.dense)
     
-model_pos = TemporalModel(poses_valid_2d[0].shape[-2], poses_valid_2d[0].shape[-1], dataset.skeleton().num_joints(),
+model_pos = TemporalModel(poses_valid_2d[0].shape[-2], poses_valid_2d[0].shape[-1], 1, #dataset.skeleton().num_joints(),
                             filter_widths=filter_widths, causal=args.causal, dropout=args.dropout, channels=args.channels,
                             dense=args.dense)
 
@@ -261,11 +262,11 @@ if not args.evaluate:
             optimizer.zero_grad()
 
             # Compute 2D poses
-            target_2d = inputs_2d[:, pad:, :, :2].clone().detach().contiguous()
-            inputs_2d[:, pad:, 5, :2] += torch.clamp(torch.zeros_like(inputs_2d[:, pad:, 5, :2]).normal_(mean=0, std=noise_std), -1.0, 1.0)
+            target_2d = inputs_2d[:, pad:, predicted_joint, :2].clone().detach().contiguous()
+            inputs_2d[:, pad:, predicted_joint, :2] += torch.clamp(torch.zeros_like(inputs_2d[:, pad:, predicted_joint, :2]).normal_(mean=0, std=noise_std), -1.0, 1.0)
             predicted_2d_pos = model_pos_train(inputs_2d)
             loss_2d_pos = mpjpe(predicted_2d_pos, target_2d) # On 2D poses
-            loss_2d_pos_noise = mpjpe(inputs_2d[:, pad:, :, :2], target_2d) # On 2D poses
+            loss_2d_pos_noise = mpjpe(inputs_2d[:, pad:, predicted_joint, :2], target_2d) # On 2D poses
             epoch_loss_2d_train += inputs_2d.shape[0] * inputs_2d.shape[1] * loss_2d_pos.item()
             epoch_loss_2d_train_noise += inputs_2d.shape[0] * inputs_2d.shape[1] * loss_2d_pos_noise.item() # On 2D poses
             
@@ -296,12 +297,12 @@ if not args.evaluate:
 
                     # Predict 2D poses
                     # Compute 2D poses
-                    target_semi = inputs_2d[:, pad:, :, :2].clone().detach().contiguous()
-                    inputs_2d[:, pad:, 5, :2] += torch.clamp(torch.zeros_like(inputs_2d[:, pad:, 5, :2]).normal_(mean=0, std=noise_std), -1.0, 1.0)
+                    target_semi = inputs_2d[:, pad:, predicted_joint, :2].clone().detach().contiguous()
+                    inputs_2d[:, pad:, predicted_joint, :2] += torch.clamp(torch.zeros_like(inputs_2d[:, pad:, predicted_joint, :2]).normal_(mean=0, std=noise_std), -1.0, 1.0)
 
                     predicted_2d_pos = model_pos(inputs_2d)
                     loss_2d_pos = mpjpe(predicted_2d_pos, target_semi)
-                    loss_2d_pos_noise = mpjpe(inputs_2d[:, pad:, :, :2], target_semi)
+                    loss_2d_pos_noise = mpjpe(inputs_2d[:, pad:, predicted_joint, :2], target_semi)
                     
                     epoch_loss_2d_valid += inputs_2d.shape[0] * inputs_2d.shape[1] * loss_2d_pos.item()
                     epoch_loss_2d_valid_noise += inputs_2d.shape[0] * inputs_2d.shape[1] * loss_2d_pos_noise.item()
@@ -325,13 +326,13 @@ if not args.evaluate:
                     if torch.cuda.is_available():
                         inputs_2d = inputs_2d.cuda()
 
-                    target_2d = inputs_2d[:, pad:, :, :2].clone().detach().contiguous()
-                    inputs_2d[:, pad:, 5, :2] += torch.clamp(torch.zeros_like(inputs_2d[:, pad:, 5, :2]).normal_(mean=0, std=noise_std), -1.0, 1.0)
+                    target_2d = inputs_2d[:, pad:, predicted_joint, :2].clone().detach().contiguous()
+                    inputs_2d[:, pad:, predicted_joint, :2] += torch.clamp(torch.zeros_like(inputs_2d[:, pad:, predicted_joint, :2]).normal_(mean=0, std=noise_std), -1.0, 1.0)
                     
                     # Compute 3D poses
                     predicted_2d_pos = model_pos(inputs_2d)
                     loss_2d_pos = mpjpe(predicted_2d_pos, target_2d)
-                    loss_2d_pos_noise = mpjpe(inputs_2d[:, pad:, :, :2], target_2d)
+                    loss_2d_pos_noise = mpjpe(inputs_2d[:, pad:, predicted_joint, :2], target_2d)
                     
                     epoch_loss_2d_train_eval += inputs_2d.shape[0] * inputs_2d.shape[1] * loss_2d_pos.item()
                     epoch_loss_2d_train_eval_noise += inputs_2d.shape[0] * inputs_2d.shape[1] * loss_2d_pos_noise.item()
@@ -416,8 +417,8 @@ def evaluate(test_generator, action=None, return_predictions=False):
             if torch.cuda.is_available():
                 inputs_2d = inputs_2d.cuda()
 
-            target_2d = inputs_2d[0:1, pad:, :, :2].clone().detach().contiguous()
-            inputs_2d[:, pad:, 5, :2] += torch.clamp(torch.zeros_like(inputs_2d[:, pad:, 5, :2]).normal_(mean=0, std=noise_std), -1.0, 1.0)
+            target_2d = inputs_2d[0:1, pad:, predicted_joint, :2].clone().detach().contiguous()
+            inputs_2d[:, pad:, predicted_joint, :2] += torch.clamp(torch.zeros_like(inputs_2d[:, pad:, predicted_joint, :2]).normal_(mean=0, std=noise_std), -1.0, 1.0)
             # Positional model
             predicted_2d_pos = model_pos(inputs_2d)
 
@@ -432,7 +433,7 @@ def evaluate(test_generator, action=None, return_predictions=False):
                 return predicted_2d_pos.squeeze(0).cpu().numpy()
 
             error = mpjpe(predicted_2d_pos, target_2d)
-            error_noise = mpjpe(inputs_2d[0:1, pad:, :, :2], target_2d)
+            error_noise = mpjpe(inputs_2d[0:1, pad:, predicted_joint, :2], target_2d)
 
             epoch_loss_2d_pos += inputs_2d.shape[0]*inputs_2d.shape[1] * error.item()
             epoch_loss_2d_pos_noise += inputs_2d.shape[0]*inputs_2d.shape[1] * error_noise.item()
@@ -553,8 +554,6 @@ else:
     def run_evaluation(actions, action_filter=None):
         errors_p1 = []
         errors_p2 = []
-        errors_p3 = []
-        errors_vel = []
 
         for action_key in actions.keys():
             if action_filter is not None:
