@@ -338,7 +338,7 @@ if not args.evaluate:
                     N += inputs_2d.shape[0] * inputs_2d.shape[1]
 
                 losses_2d_train_eval.append(epoch_loss_2d_train_eval / N)
-                losses_2d_train_eval_noise.append(losses_2d_train_eval_noise / N)
+                losses_2d_train_eval_noise.append(epoch_loss_2d_train_eval_noise / N)
 
         elapsed = (time() - start_time)/60
         
