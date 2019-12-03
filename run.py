@@ -76,6 +76,9 @@ drop = args.noise_drop
 noise_std = args.noise_std
 predicted_joint = slice(5, 5+1)
 
+print('drop=',drop)
+print('noise_std=',noise_std)
+
 for subject in dataset.subjects():
     assert subject in keypoints, 'Subject {} is missing from the 2D detections dataset'.format(subject)
     for action in dataset[subject].keys():
@@ -201,7 +204,7 @@ if args.resume or args.evaluate:
 # dummy_input = torch.rand(1, 34, 27, 1)
 # torch.onnx.export(model_pos, dummy_input, "VideoPose3D_243.onnx", verbose=True)
 
-test_generator = UnchunkedGenerator(cameras_valid, poses_valid, poses_valid_2d,
+test_generator = ChunkedGenerator(cameras_valid, poses_valid, poses_valid_2d,
                                     pad=pad, causal_shift=causal_shift, augment=False,
                                     kps_left=kps_left, kps_right=kps_right, joints_left=joints_left, joints_right=joints_right)
 print('INFO: Testing on {} frames'.format(test_generator.num_frames()))
@@ -229,7 +232,7 @@ if not args.evaluate:
     train_generator = ChunkedGenerator(args.batch_size//args.stride, cameras_train, poses_train, poses_train_2d, args.stride,
                                        pad=pad, causal_shift=causal_shift, shuffle=True, augment=args.data_augmentation,
                                        kps_left=kps_left, kps_right=kps_right, joints_left=joints_left, joints_right=joints_right)
-    train_generator_eval = UnchunkedGenerator(cameras_train, poses_train, poses_train_2d,
+    train_generator_eval = ChunkedGenerator(cameras_train, poses_train, poses_train_2d,
                                               pad=pad, causal_shift=causal_shift, augment=False)
     print('INFO: Training on {} frames'.format(train_generator_eval.num_frames()))
 
@@ -307,12 +310,14 @@ if not args.evaluate:
                     
                     if drop:
                         inputs_2d[:, pad:, predicted_joint, :2] = torch.zeros_like(inputs_2d[:, pad:, predicted_joint, :2])
+                        noise_pred = inputs_2d[:, pad-1:-1, predicted_joint, :2]
                     else:
                         inputs_2d[:, pad:, predicted_joint, :2] += torch.clamp(torch.zeros_like(inputs_2d[:, pad:, predicted_joint, :2]).normal_(mean=0, std=noise_std), -1.0, 1.0)
+                        noise_pred = inputs_2d[:, pad:, predicted_joint, :2]
 
                     predicted_2d_pos = model_pos(inputs_2d)
                     loss_2d_pos = mpjpe(predicted_2d_pos, target_semi)
-                    loss_2d_pos_noise = mpjpe(inputs_2d[:, pad:, predicted_joint, :2], target_semi)
+                    loss_2d_pos_noise = mpjpe(noise_pred, target_semi)
                     
                     epoch_loss_2d_valid += inputs_2d.shape[0] * inputs_2d.shape[1] * loss_2d_pos.item()
                     epoch_loss_2d_valid_noise += inputs_2d.shape[0] * inputs_2d.shape[1] * loss_2d_pos_noise.item()
@@ -340,13 +345,15 @@ if not args.evaluate:
                     
                     if drop:
                         inputs_2d[:, pad:, predicted_joint, :2] = torch.zeros_like(inputs_2d[:, pad:, predicted_joint, :2])
+                        noise_pred = inputs_2d[:, pad-1:-1, predicted_joint, :2]
                     else:
                         inputs_2d[:, pad:, predicted_joint, :2] += torch.clamp(torch.zeros_like(inputs_2d[:, pad:, predicted_joint, :2]).normal_(mean=0, std=noise_std), -1.0, 1.0)
+                        noise_pred = inputs_2d[:, pad:, predicted_joint, :2]
                     
                     # Compute 3D poses
                     predicted_2d_pos = model_pos(inputs_2d)
                     loss_2d_pos = mpjpe(predicted_2d_pos, target_2d)
-                    loss_2d_pos_noise = mpjpe(inputs_2d[:, pad:, predicted_joint, :2], target_2d)
+                    loss_2d_pos_noise = mpjpe(noise_pred, target_2d)
                     
                     epoch_loss_2d_train_eval += inputs_2d.shape[0] * inputs_2d.shape[1] * loss_2d_pos.item()
                     epoch_loss_2d_train_eval_noise += inputs_2d.shape[0] * inputs_2d.shape[1] * loss_2d_pos_noise.item()
@@ -365,7 +372,7 @@ if not args.evaluate:
                     lr,
                     losses_2d_train[-1] * 1000))
         else:
-            print('[%d] time %.2f lr %f | 2d_train %f 2d_train_noise | %f 2d_eval %f 2d_eval_noise | %f 2d_valid %f 2d_valid_noise %f' % (
+            print('[%d] time %.2f lr %f | 2d_train %f 2d_train_noise %f | 2d_eval %f 2d_eval_noise %f | 2d_valid %f 2d_valid_noise %f' % (
                     epoch + 1,
                     elapsed,
                     lr,
@@ -435,8 +442,10 @@ def evaluate(test_generator, action=None, return_predictions=False):
 
             if drop:
                 inputs_2d[:, pad:, predicted_joint, :2] = torch.zeros_like(inputs_2d[:, pad:, predicted_joint, :2])
+                noise_pred = inputs_2d[0:1, pad-1:-1, predicted_joint, :2]
             else:
                 inputs_2d[:, pad:, predicted_joint, :2] += torch.clamp(torch.zeros_like(inputs_2d[:, pad:, predicted_joint, :2]).normal_(mean=0, std=noise_std), -1.0, 1.0)
+                noise_pred = inputs_2d[0:1, pad:, predicted_joint, :2]
 
             # Positional model
             predicted_2d_pos = model_pos(inputs_2d)
@@ -452,7 +461,7 @@ def evaluate(test_generator, action=None, return_predictions=False):
                 return predicted_2d_pos.squeeze(0).cpu().numpy()
 
             error = mpjpe(predicted_2d_pos, target_2d)
-            error_noise = mpjpe(inputs_2d[0:1, pad:, predicted_joint, :2], target_2d)
+            error_noise = mpjpe(noise_pred, target_2d)
 
             epoch_loss_2d_pos += inputs_2d.shape[0]*inputs_2d.shape[1] * error.item()
             epoch_loss_2d_pos_noise += inputs_2d.shape[0]*inputs_2d.shape[1] * error_noise.item()
