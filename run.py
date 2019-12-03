@@ -73,7 +73,7 @@ joints_left, joints_right = list(dataset.skeleton().joints_left()), list(dataset
 keypoints = keypoints['positions_2d'].item()
 
 noise_std = 0.02
-predicted_joint = slice(predicted_joint, predicted_joint+1)
+predicted_joint = slice(5, 5+1)
 
 for subject in dataset.subjects():
     assert subject in keypoints, 'Subject {} is missing from the 2D detections dataset'.format(subject)
