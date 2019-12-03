@@ -416,7 +416,7 @@ def evaluate(test_generator, action=None, return_predictions=False):
             if torch.cuda.is_available():
                 inputs_2d = inputs_2d.cuda()
 
-            target_2d = inputs_2d[:, pad:, :, :2].clone().detach().contiguous()
+            target_2d = inputs_2d[0:1, pad:, :, :2].clone().detach().contiguous()
             inputs_2d[:, pad:, 5, :2] += torch.clamp(torch.zeros_like(inputs_2d[:, pad:, 5, :2]).normal_(mean=0, std=noise_std), -1.0, 1.0)
             # Positional model
             predicted_2d_pos = model_pos(inputs_2d)
@@ -432,18 +432,18 @@ def evaluate(test_generator, action=None, return_predictions=False):
                 return predicted_2d_pos.squeeze(0).cpu().numpy()
 
             error = mpjpe(predicted_2d_pos, target_2d)
-            error_noise = mpjpe(inputs_2d, target_2d)
+            error_noise = mpjpe(inputs_2d[0:1, pad:, :, :2], target_2d)
 
-            epoch_loss_2d_pos += inputs_3d.shape[0]*inputs_3d.shape[1] * error.item()
-            epoch_loss_2d_pos_noise += inputs_3d.shape[0]*inputs_3d.shape[1] * error_noise.item()
-            N += inputs_3d.shape[0] * inputs_3d.shape[1]
+            epoch_loss_2d_pos += inputs_2d.shape[0]*inputs_2d.shape[1] * error.item()
+            epoch_loss_2d_pos_noise += inputs_2d.shape[0]*inputs_2d.shape[1] * error_noise.item()
+            N += inputs_2d.shape[0] * inputs_2d.shape[1]
             
     if action is None:
         print('----------')
     else:
         print('----'+action+'----')
-    e1 = (epoch_loss_3d_pos / N)*1000
-    e1_noise = (epoch_loss_3d_pos_noise / N)*1000
+    e1 = (epoch_loss_2d_pos / N)*1000
+    e1_noise = (epoch_loss_2d_pos_noise / N)*1000
     print('Test time augmentation:', test_generator.augment_enabled())
     print('Protocol #1 Error (MPJPE):', e1, 'mm')
     print('Protocol #1 Error - Noise (MPJPE):', e1_noise, 'mm')
@@ -570,16 +570,12 @@ else:
             gen = UnchunkedGenerator(None, poses_act, poses_2d_act,
                                      pad=pad, causal_shift=causal_shift, augment=args.test_time_augmentation,
                                      kps_left=kps_left, kps_right=kps_right, joints_left=joints_left, joints_right=joints_right)
-            e1, e2, e3, ev = evaluate(gen, action_key)
+            e1, e2 = evaluate(gen, action_key)
             errors_p1.append(e1)
             errors_p2.append(e2)
-            errors_p3.append(e3)
-            errors_vel.append(ev)
 
         print('Protocol #1   (MPJPE) action-wise average:', round(np.mean(errors_p1), 1), 'mm')
-        print('Protocol #2 (P-MPJPE) action-wise average:', round(np.mean(errors_p2), 1), 'mm')
-        print('Protocol #3 (N-MPJPE) action-wise average:', round(np.mean(errors_p3), 1), 'mm')
-        print('Velocity      (MPJVE) action-wise average:', round(np.mean(errors_vel), 2), 'mm')
+        print('Protocol #1   (MPJPE) noise action-wise average:', round(np.mean(errors_p2), 1), 'mm')
 
     if not args.by_subject:
         run_evaluation(all_actions, action_filter)
