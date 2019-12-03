@@ -72,7 +72,8 @@ kps_left, kps_right = list(keypoints_symmetry[0]), list(keypoints_symmetry[1])
 joints_left, joints_right = list(dataset.skeleton().joints_left()), list(dataset.skeleton().joints_right())
 keypoints = keypoints['positions_2d'].item()
 
-noise_std = 0.02
+drop = args.noise_drop
+noise_std = args.noise_std
 predicted_joint = slice(5, 5+1)
 
 for subject in dataset.subjects():
@@ -263,7 +264,12 @@ if not args.evaluate:
 
             # Compute 2D poses
             target_2d = inputs_2d[:, pad:, predicted_joint, :2].clone().detach().contiguous()
-            inputs_2d[:, pad:, predicted_joint, :2] += torch.clamp(torch.zeros_like(inputs_2d[:, pad:, predicted_joint, :2]).normal_(mean=0, std=noise_std), -1.0, 1.0)
+            
+            if drop:
+                inputs_2d[:, pad:, predicted_joint, :2] = torch.zeros_like(inputs_2d[:, pad:, predicted_joint, :2])
+            else:
+                inputs_2d[:, pad:, predicted_joint, :2] += torch.clamp(torch.zeros_like(inputs_2d[:, pad:, predicted_joint, :2]).normal_(mean=0, std=noise_std), -1.0, 1.0)
+
             predicted_2d_pos = model_pos_train(inputs_2d)
             loss_2d_pos = mpjpe(predicted_2d_pos, target_2d) # On 2D poses
             loss_2d_pos_noise = mpjpe(inputs_2d[:, pad:, predicted_joint, :2], target_2d) # On 2D poses
@@ -298,7 +304,11 @@ if not args.evaluate:
                     # Predict 2D poses
                     # Compute 2D poses
                     target_semi = inputs_2d[:, pad:, predicted_joint, :2].clone().detach().contiguous()
-                    inputs_2d[:, pad:, predicted_joint, :2] += torch.clamp(torch.zeros_like(inputs_2d[:, pad:, predicted_joint, :2]).normal_(mean=0, std=noise_std), -1.0, 1.0)
+                    
+                    if drop:
+                        inputs_2d[:, pad:, predicted_joint, :2] = torch.zeros_like(inputs_2d[:, pad:, predicted_joint, :2])
+                    else:
+                        inputs_2d[:, pad:, predicted_joint, :2] += torch.clamp(torch.zeros_like(inputs_2d[:, pad:, predicted_joint, :2]).normal_(mean=0, std=noise_std), -1.0, 1.0)
 
                     predicted_2d_pos = model_pos(inputs_2d)
                     loss_2d_pos = mpjpe(predicted_2d_pos, target_semi)
@@ -327,7 +337,11 @@ if not args.evaluate:
                         inputs_2d = inputs_2d.cuda()
 
                     target_2d = inputs_2d[:, pad:, predicted_joint, :2].clone().detach().contiguous()
-                    inputs_2d[:, pad:, predicted_joint, :2] += torch.clamp(torch.zeros_like(inputs_2d[:, pad:, predicted_joint, :2]).normal_(mean=0, std=noise_std), -1.0, 1.0)
+                    
+                    if drop:
+                        inputs_2d[:, pad:, predicted_joint, :2] = torch.zeros_like(inputs_2d[:, pad:, predicted_joint, :2])
+                    else:
+                        inputs_2d[:, pad:, predicted_joint, :2] += torch.clamp(torch.zeros_like(inputs_2d[:, pad:, predicted_joint, :2]).normal_(mean=0, std=noise_std), -1.0, 1.0)
                     
                     # Compute 3D poses
                     predicted_2d_pos = model_pos(inputs_2d)
@@ -351,7 +365,7 @@ if not args.evaluate:
                     lr,
                     losses_2d_train[-1] * 1000))
         else:
-            print('[%d] time %.2f lr %f 2d_train %f 2d_train_noise %f 2d_eval %f 2d_eval_noise %f 2d_valid %f 2d_valid_noise %f' % (
+            print('[%d] time %.2f lr %f | 2d_train %f 2d_train_noise | %f 2d_eval %f 2d_eval_noise | %f 2d_valid %f 2d_valid_noise %f' % (
                     epoch + 1,
                     elapsed,
                     lr,
@@ -418,7 +432,12 @@ def evaluate(test_generator, action=None, return_predictions=False):
                 inputs_2d = inputs_2d.cuda()
 
             target_2d = inputs_2d[0:1, pad:, predicted_joint, :2].clone().detach().contiguous()
-            inputs_2d[:, pad:, predicted_joint, :2] += torch.clamp(torch.zeros_like(inputs_2d[:, pad:, predicted_joint, :2]).normal_(mean=0, std=noise_std), -1.0, 1.0)
+
+            if drop:
+                inputs_2d[:, pad:, predicted_joint, :2] = torch.zeros_like(inputs_2d[:, pad:, predicted_joint, :2])
+            else:
+                inputs_2d[:, pad:, predicted_joint, :2] += torch.clamp(torch.zeros_like(inputs_2d[:, pad:, predicted_joint, :2]).normal_(mean=0, std=noise_std), -1.0, 1.0)
+
             # Positional model
             predicted_2d_pos = model_pos(inputs_2d)
 

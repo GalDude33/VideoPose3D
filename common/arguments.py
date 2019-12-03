@@ -57,7 +57,9 @@ def parse_args():
     parser.add_argument('--no-bone-length', action='store_false', dest='bone_length_term',
                         help='disable bone length term in semi-supervised settings')
     parser.add_argument('--no-proj', action='store_true', help='disable projection for semi-supervised setting')
-    
+    parser.add_argument('--noise-std', default=0.0, type=float, help='noise std')
+    parser.add_argument('--noise-drop', action='store_true', help='use drop instead of noise std')
+
     # Visualization
     parser.add_argument('--viz-subject', type=str, metavar='STR', help='subject to render')
     parser.add_argument('--viz-action', type=str, metavar='STR', help='action to render')
