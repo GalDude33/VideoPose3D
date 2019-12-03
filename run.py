@@ -330,7 +330,7 @@ if not args.evaluate:
                     # Compute 3D poses
                     predicted_2d_pos = model_pos(inputs_2d)
                     loss_2d_pos = mpjpe(predicted_2d_pos, target_2d)
-                    loss_2d_pos_noise = mpjpe(inputs_2d[:, pad:, :, :2], target_semi)
+                    loss_2d_pos_noise = mpjpe(inputs_2d[:, pad:, :, :2], target_2d)
                     
                     epoch_loss_2d_train_eval += inputs_2d.shape[0] * inputs_2d.shape[1] * loss_2d_pos.item()
                     epoch_loss_2d_train_eval_noise += inputs_2d.shape[0] * inputs_2d.shape[1] * loss_2d_pos_noise.item()
