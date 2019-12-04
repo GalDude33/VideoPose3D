@@ -74,7 +74,7 @@ keypoints = keypoints['positions_2d'].item()
 
 drop = args.noise_drop
 noise_std = args.noise_std
-predicted_joint = slice(5, 5+1)
+predicted_joint = slice(7, 7+1)
 
 print('drop=',drop)
 print('noise_std=',noise_std)
@@ -271,12 +271,14 @@ if not args.evaluate:
             
             if drop:
                 inputs_2d[:, pad:, predicted_joint, :2] = torch.zeros_like(inputs_2d[:, pad:, predicted_joint, :2])
+                noise_pred = inputs_2d[:, pad-1:pad, predicted_joint, :2]
             else:
                 inputs_2d[:, pad:, predicted_joint, :2] += torch.clamp(torch.zeros_like(inputs_2d[:, pad:, predicted_joint, :2]).normal_(mean=0, std=noise_std), -1.0, 1.0)
+                noise_pred = inputs_2d[:, pad:, predicted_joint, :2]
 
             predicted_2d_pos = model_pos_train(inputs_2d)
-            loss_2d_pos = mpjpe(predicted_2d_pos, target_2d) # On 2D poses
-            loss_2d_pos_noise = mpjpe(inputs_2d[:, pad:, predicted_joint, :2], target_2d) # On 2D poses
+            loss_2d_pos = mpjpe(predicted_2d_pos+noise_pred, target_2d) # On 2D poses
+            loss_2d_pos_noise = mpjpe(noise_pred, target_2d) # On 2D poses
             epoch_loss_2d_train += inputs_2d.shape[0] * inputs_2d.shape[1] * loss_2d_pos.item()
             epoch_loss_2d_train_noise += inputs_2d.shape[0] * inputs_2d.shape[1] * loss_2d_pos_noise.item() # On 2D poses
             
@@ -311,13 +313,13 @@ if not args.evaluate:
                     
                     if drop:
                         inputs_2d[:, pad:, predicted_joint, :2] = torch.zeros_like(inputs_2d[:, pad:, predicted_joint, :2])
-                        noise_pred = inputs_2d[:, pad-1:-1, predicted_joint, :2]
+                        noise_pred = inputs_2d[:, pad-1:pad, predicted_joint, :2]
                     else:
                         inputs_2d[:, pad:, predicted_joint, :2] += torch.clamp(torch.zeros_like(inputs_2d[:, pad:, predicted_joint, :2]).normal_(mean=0, std=noise_std), -1.0, 1.0)
                         noise_pred = inputs_2d[:, pad:, predicted_joint, :2]
 
                     predicted_2d_pos = model_pos(inputs_2d)
-                    loss_2d_pos = mpjpe(predicted_2d_pos, target_semi)
+                    loss_2d_pos = mpjpe(predicted_2d_pos+noise_pred, target_semi)
                     loss_2d_pos_noise = mpjpe(noise_pred, target_semi)
                     
                     epoch_loss_2d_valid += inputs_2d.shape[0] * inputs_2d.shape[1] * loss_2d_pos.item()
@@ -346,14 +348,14 @@ if not args.evaluate:
                     
                     if drop:
                         inputs_2d[:, pad:, predicted_joint, :2] = torch.zeros_like(inputs_2d[:, pad:, predicted_joint, :2])
-                        noise_pred = inputs_2d[:, pad-1:-1, predicted_joint, :2]
+                        noise_pred = inputs_2d[:, pad-1:pad, predicted_joint, :2]
                     else:
                         inputs_2d[:, pad:, predicted_joint, :2] += torch.clamp(torch.zeros_like(inputs_2d[:, pad:, predicted_joint, :2]).normal_(mean=0, std=noise_std), -1.0, 1.0)
                         noise_pred = inputs_2d[:, pad:, predicted_joint, :2]
                     
                     # Compute 3D poses
                     predicted_2d_pos = model_pos(inputs_2d)
-                    loss_2d_pos = mpjpe(predicted_2d_pos, target_2d)
+                    loss_2d_pos = mpjpe(predicted_2d_pos+noise_pred, target_2d)
                     loss_2d_pos_noise = mpjpe(noise_pred, target_2d)
                     
                     epoch_loss_2d_train_eval += inputs_2d.shape[0] * inputs_2d.shape[1] * loss_2d_pos.item()
@@ -439,14 +441,14 @@ def evaluate(test_generator, action=None, return_predictions=False):
             if torch.cuda.is_available():
                 inputs_2d = inputs_2d.cuda()
 
-            target_2d = inputs_2d[0:1, pad:, predicted_joint, :2].clone().detach().contiguous()
+            target_2d = inputs_2d[:, pad:, predicted_joint, :2].clone().detach().contiguous()
 
             if drop:
                 inputs_2d[:, pad:, predicted_joint, :2] = torch.zeros_like(inputs_2d[:, pad:, predicted_joint, :2])
-                noise_pred = inputs_2d[0:1, pad-1:-1, predicted_joint, :2]
+                noise_pred = inputs_2d[:, pad-1:pad, predicted_joint, :2]
             else:
                 inputs_2d[:, pad:, predicted_joint, :2] += torch.clamp(torch.zeros_like(inputs_2d[:, pad:, predicted_joint, :2]).normal_(mean=0, std=noise_std), -1.0, 1.0)
-                noise_pred = inputs_2d[0:1, pad:, predicted_joint, :2]
+                noise_pred = inputs_2d[:, pad:, predicted_joint, :2]
 
             # Positional model
             predicted_2d_pos = model_pos(inputs_2d)
@@ -461,7 +463,7 @@ def evaluate(test_generator, action=None, return_predictions=False):
             if return_predictions:
                 return predicted_2d_pos.squeeze(0).cpu().numpy()
 
-            error = mpjpe(predicted_2d_pos, target_2d)
+            error = mpjpe(predicted_2d_pos+noise_pred, target_2d)
             error_noise = mpjpe(noise_pred, target_2d)
 
             epoch_loss_2d_pos += inputs_2d.shape[0]*inputs_2d.shape[1] * error.item()
@@ -595,9 +597,14 @@ else:
                     continue
 
             poses_act, poses_2d_act = fetch_actions(actions[action_key])
-            gen = UnchunkedGenerator(None, poses_act, poses_2d_act,
-                                     pad=pad, causal_shift=causal_shift, augment=args.test_time_augmentation,
-                                     kps_left=kps_left, kps_right=kps_right, joints_left=joints_left, joints_right=joints_right)
+            #gen = ChunkedGenerator(None, poses_act, poses_2d_act,
+            #                         pad=pad, causal_shift=causal_shift, augment=args.test_time_augmentation,
+            #                         kps_left=kps_left, kps_right=kps_right, joints_left=joints_left, joints_right=joints_right)
+            gen = ChunkedGenerator(args.batch_size//args.stride, None, poses_act, poses_2d_act, args.stride,
+                                    pad=pad, causal_shift=causal_shift, augment=False, shuffle=False,
+                                    kps_left=kps_left, kps_right=kps_right, joints_left=joints_left, joints_right=joints_right)
+
+            
             e1, e2 = evaluate(gen, action_key)
             errors_p1.append(e1)
             errors_p2.append(e2)
