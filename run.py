@@ -318,9 +318,9 @@ if not args.evaluate:
                         inputs_2d[:, pad:, predicted_joint, :2] += torch.clamp(torch.zeros_like(inputs_2d[:, pad:, predicted_joint, :2]).normal_(mean=0, std=noise_std), -1.0, 1.0)
                         noise_pred = inputs_2d[:, pad:, predicted_joint, :2]
 
+                    predicted_2d_pos = model_pos(inputs_2d)
                     pred2d = predicted_2d_pos+noise_pred
 
-                    predicted_2d_pos = model_pos(inputs_2d)
                     loss_2d_pos = mpjpe(pred2d, target_semi)
                     loss_2d_pos_noise = mpjpe(noise_pred, target_semi)
 

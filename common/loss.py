@@ -22,7 +22,7 @@ def mAP(predicted, target, thres):
     often referred to as "Protocol #1" in many papers.
     """
     assert predicted.shape == target.shape
-    return torch.mean(((predicted - target) < (thres/1000.0)).float())
+    return torch.mean((torch.norm(predicted - target, dim=len(target.shape)-1) < (thres/1000.0)).float())
 
 def mAP_10(predicted, target):
     return mAP(predicted, target, 10.0)
