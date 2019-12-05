@@ -15,7 +15,24 @@ def mpjpe(predicted, target):
     """
     assert predicted.shape == target.shape
     return torch.mean(torch.norm(predicted - target, dim=len(target.shape)-1))
-    
+
+def mAP(predicted, target, thres):
+    """
+    Mean per-joint position error (i.e. mean Euclidean distance),
+    often referred to as "Protocol #1" in many papers.
+    """
+    assert predicted.shape == target.shape
+    return torch.mean(((predicted - target) < (thres/1000.0)).float())
+
+def mAP_10(predicted, target):
+    return mAP(predicted, target, 10.0)
+
+def mAP_5(predicted, target):
+    return mAP(predicted, target, 5.0)
+
+def mAP_2(predicted, target):
+    return mAP(predicted, target, 2.0)
+
 def weighted_mpjpe(predicted, target, w):
     """
     Weighted mean per-joint position error (i.e. mean Euclidean distance)
