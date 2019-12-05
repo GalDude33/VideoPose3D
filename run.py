@@ -325,18 +325,23 @@ if not args.evaluate:
                     loss_2d_pos = mpjpe(pred2d, target_semi)
                     loss_2d_pos_noise = mpjpe(noise_pred, target_semi)
 
-                    map2_valid += mAP_2(pred2d, target_semi)
-                    map2_valid_noise += mAP_2(noise_pred, target_semi)
-                    map5_valid += mAP_5(pred2d, target_semi)
-                    map5_valid_noise += mAP_5(noise_pred, target_semi)
-                    map10_valid += mAP_10(pred2d, target_semi)
-                    map10_valid_noise += mAP_10(noise_pred, target_semi)
+                    map2_valid += inputs_2d.shape[0] * inputs_2d.shape[1] * mAP_2(pred2d, target_semi)
+                    map2_valid_noise += inputs_2d.shape[0] * inputs_2d.shape[1] * mAP_2(noise_pred, target_semi)
+                    map5_valid += inputs_2d.shape[0] * inputs_2d.shape[1] * mAP_5(pred2d, target_semi)
+                    map5_valid_noise += inputs_2d.shape[0] * inputs_2d.shape[1] * mAP_5(noise_pred, target_semi)
+                    map10_valid += inputs_2d.shape[0] * inputs_2d.shape[1] * mAP_10(pred2d, target_semi)
+                    map10_valid_noise += inputs_2d.shape[0] * inputs_2d.shape[1] * mAP_10(noise_pred, target_semi)
                     
                     epoch_loss_2d_valid += inputs_2d.shape[0] * inputs_2d.shape[1] * loss_2d_pos.item()
                     epoch_loss_2d_valid_noise += inputs_2d.shape[0] * inputs_2d.shape[1] * loss_2d_pos_noise.item()
 
                     N += inputs_2d.shape[0] * inputs_2d.shape[1]
 
+                print('mAP2 {}, mAP2 N {} | mAP5 {}, mAP5 N {} | mAP10 {}, mAP10 N {}'.format(
+                    map2_valid / N, map2_valid_noise/ N, map5_valid/ N, 
+                    map5_valid_noise/ N, map10_valid/ N, map10_valid_noise/ N
+                ))
+                
                 losses_2d_valid.append(epoch_loss_2d_valid / N)
                 losses_2d_valid_noise.append(epoch_loss_2d_valid_noise / N)
 
@@ -375,11 +380,6 @@ if not args.evaluate:
 
                 losses_2d_train_eval.append(epoch_loss_2d_train_eval / N)
                 losses_2d_train_eval_noise.append(epoch_loss_2d_train_eval_noise / N)
-
-                print('mAP2 {}, mAP2 N {} | mAP5 {}, mAP5 N {} | mAP10 {}, mAP10 N {}'.format(
-                    map2_valid / N, map2_valid_noise/ N, map5_valid/ N, 
-                    map5_valid_noise/ N, map10_valid/ N, map10_valid_noise/ N
-                ))
 
         elapsed = (time() - start_time)/60
 
