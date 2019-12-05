@@ -59,6 +59,9 @@ def parse_args():
     parser.add_argument('--no-proj', action='store_true', help='disable projection for semi-supervised setting')
     parser.add_argument('--noise-std', default=0.0, type=float, help='noise std')
     parser.add_argument('--noise-drop', action='store_true', help='use drop instead of noise std')
+    parser.add_argument('--aug-noise-std', default=0.0, type=float, help='augmentation noise std')
+
+    parser.add_argument('--all-strides', action='store_true', help='use all srtride lengths')
 
     # Visualization
     parser.add_argument('--viz-subject', type=str, metavar='STR', help='subject to render')

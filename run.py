@@ -141,18 +141,27 @@ def fetch(subjects, action_filter=None, subset=1, parse_3d_poses=True):
     if len(out_camera_params) == 0:
         out_camera_params = None
     
-    stride = args.downsample
+    if args.all_strides:
+        strides = [s for s in range(1,args.downsample+1)]
+    else:
+        strides = [args.downsample]
+
+    out_poses_2d_last = []
+    out_camera_params_last = []
     if subset < 1:
         for i in range(len(out_poses_2d)):
             n_frames = int(round(len(out_poses_2d[i])//stride * subset)*stride)
             start = deterministic_random(0, len(out_poses_2d[i]) - n_frames + 1, str(len(out_poses_2d[i])))
             out_poses_2d[i] = out_poses_2d[i][start:start+n_frames:stride]
-    elif stride > 1:
+    elif strides[-1] > 1:
         # Downsample as requested
         for i in range(len(out_poses_2d)):
-            out_poses_2d[i] = out_poses_2d[i][::stride]
+            for stride in strides:
+                for s_start in range(stride):
+                    out_poses_2d_last.append(out_poses_2d[i][s_start::stride])
+                    out_camera_params_last.append(out_camera_params[i])
 
-    return out_camera_params, None, out_poses_2d
+    return out_camera_params_last, None, out_poses_2d_last
 
 action_filter = None if args.actions == '*' else args.actions.split(',')
 if action_filter is not None:
@@ -231,7 +240,8 @@ if not args.evaluate:
     
     train_generator = ChunkedGenerator(args.batch_size//args.stride, cameras_train, poses_train, poses_train_2d, args.stride,
                                        pad=pad, causal_shift=causal_shift, shuffle=True, augment=args.data_augmentation,
-                                       kps_left=kps_left, kps_right=kps_right, joints_left=joints_left, joints_right=joints_right)
+                                       kps_left=kps_left, kps_right=kps_right, joints_left=joints_left, joints_right=joints_right,
+                                       augment_noise=args.aug_noise_std)
     train_generator_eval = ChunkedGenerator(args.batch_size//args.stride, cameras_train, poses_train, poses_train_2d, args.stride,
                                               pad=pad, causal_shift=causal_shift, shuffle=False, augment=False, 
                                               kps_left=kps_left, kps_right=kps_right, joints_left=joints_left, joints_right=joints_right)
@@ -341,7 +351,7 @@ if not args.evaluate:
                     map2_valid / N, map2_valid_noise/ N, map5_valid/ N, 
                     map5_valid_noise/ N, map10_valid/ N, map10_valid_noise/ N
                 ))
-                
+                           
                 losses_2d_valid.append(epoch_loss_2d_valid / N)
                 losses_2d_valid_noise.append(epoch_loss_2d_valid_noise / N)
 
