@@ -210,10 +210,7 @@ if args.resume or args.evaluate:
     model_pos_train.load_state_dict(checkpoint['model_pos'])
     model_pos.load_state_dict(checkpoint['model_pos'])
 
-# dummy_input = torch.rand(1, 34, 27, 1)
-# torch.onnx.export(model_pos, dummy_input, "VideoPose3D_243.onnx", verbose=True)
-
-test_generator = ChunkedGenerator(args.batch_size//args.stride, cameras_valid, poses_valid, poses_valid_2d, args.stride,
+test_generator = ChunkedGenerator(args.batch_size//args.stride, cameras_valid, poses_valid_2d, args.stride,
                                     pad=pad, causal_shift=causal_shift, augment=False, shuffle=False,
                                     kps_left=kps_left, kps_right=kps_right, joints_left=joints_left, joints_right=joints_right)
 print('INFO: Testing on {} frames'.format(test_generator.num_frames()))
@@ -238,11 +235,11 @@ if not args.evaluate:
     initial_momentum = 0.1
     final_momentum = 0.001
     
-    train_generator = ChunkedGenerator(args.batch_size//args.stride, cameras_train, poses_train, poses_train_2d, args.stride,
+    train_generator = ChunkedGenerator(args.batch_size//args.stride, cameras_train, poses_train_2d, args.stride,
                                        pad=pad, causal_shift=causal_shift, shuffle=True, augment=args.data_augmentation,
                                        kps_left=kps_left, kps_right=kps_right, joints_left=joints_left, joints_right=joints_right,
                                        augment_noise=args.aug_noise_std)
-    train_generator_eval = ChunkedGenerator(args.batch_size//args.stride, cameras_train, poses_train, poses_train_2d, args.stride,
+    train_generator_eval = ChunkedGenerator(args.batch_size//args.stride, cameras_train, poses_train_2d, args.stride,
                                               pad=pad, causal_shift=causal_shift, shuffle=False, augment=False, 
                                               kps_left=kps_left, kps_right=kps_right, joints_left=joints_left, joints_right=joints_right)
     print('INFO: Training on {} frames'.format(train_generator_eval.num_frames()))
@@ -268,7 +265,7 @@ if not args.evaluate:
         N = 0
         model_pos_train.train()
         
-        for (_, _, batch_2d) in train_generator.next_epoch():
+        for (_, batch_2d) in train_generator.next_epoch():
             inputs_2d = torch.from_numpy(batch_2d.astype('float32'))
             
             if torch.cuda.is_available():
@@ -313,7 +310,7 @@ if not args.evaluate:
 
             if not args.no_eval:
                 # Evaluate on test set
-                for cam, _, batch_2d in test_generator.next_epoch():
+                for cam, batch_2d in test_generator.next_epoch():
                     inputs_2d = torch.from_numpy(batch_2d.astype('float32'))
                     if torch.cuda.is_available():
                         inputs_2d = inputs_2d.cuda()
@@ -351,7 +348,7 @@ if not args.evaluate:
                     map2_valid / N, map2_valid_noise/ N, map5_valid/ N, 
                     map5_valid_noise/ N, map10_valid/ N, map10_valid_noise/ N
                 ))
-                           
+
                 losses_2d_valid.append(epoch_loss_2d_valid / N)
                 losses_2d_valid_noise.append(epoch_loss_2d_valid_noise / N)
 
@@ -360,7 +357,7 @@ if not args.evaluate:
                 epoch_loss_2d_train_eval_noise = 0
 
                 N = 0
-                for cam, _, batch_2d in train_generator_eval.next_epoch():
+                for cam, batch_2d in train_generator_eval.next_epoch():
                     if batch_2d.shape[1] == 0:
                         # This can only happen when downsampling the dataset
                         continue
@@ -461,7 +458,7 @@ def evaluate(test_generator, action=None, return_predictions=False):
         N = 0
         epoch_loss_2d_pos = 0
         epoch_loss_2d_pos_noise = 0
-        for _, _, batch_2d in test_generator.next_epoch():
+        for _, batch_2d in test_generator.next_epoch():
             inputs_2d = torch.from_numpy(batch_2d.astype('float32'))
             if torch.cuda.is_available():
                 inputs_2d = inputs_2d.cuda()
@@ -584,7 +581,6 @@ else:
             all_actions_by_subject[subject][action_name].append((subject, action))
 
     def fetch_actions(actions):
-        out_poses_3d = []
         out_poses_2d = []
 
         for subject, action in actions:
@@ -592,20 +588,13 @@ else:
             for i in range(len(poses_2d)): # Iterate across cameras
                 out_poses_2d.append(poses_2d[i])
 
-            poses_3d = dataset[subject][action]['positions_3d']
-            assert len(poses_3d) == len(poses_2d), 'Camera count mismatch'
-            for i in range(len(poses_3d)): # Iterate across cameras
-                out_poses_3d.append(poses_3d[i])
-
         stride = args.downsample
         if stride > 1:
             # Downsample as requested
             for i in range(len(out_poses_2d)):
                 out_poses_2d[i] = out_poses_2d[i][::stride]
-                if out_poses_3d is not None:
-                    out_poses_3d[i] = out_poses_3d[i][::stride]
         
-        return out_poses_3d, out_poses_2d
+        return out_poses_2d
 
     def run_evaluation(actions, action_filter=None):
         errors_p1 = []
@@ -621,11 +610,8 @@ else:
                 if not found:
                     continue
 
-            poses_act, poses_2d_act = fetch_actions(actions[action_key])
-            #gen = ChunkedGenerator(None, poses_act, poses_2d_act,
-            #                         pad=pad, causal_shift=causal_shift, augment=args.test_time_augmentation,
-            #                         kps_left=kps_left, kps_right=kps_right, joints_left=joints_left, joints_right=joints_right)
-            gen = ChunkedGenerator(args.batch_size//args.stride, None, poses_act, poses_2d_act, args.stride,
+            poses_2d_act = fetch_actions(actions[action_key])
+            gen = ChunkedGenerator(args.batch_size//args.stride, None, poses_2d_act, args.stride,
                                     pad=pad, causal_shift=causal_shift, augment=False, shuffle=False,
                                     kps_left=kps_left, kps_right=kps_right, joints_left=joints_left, joints_right=joints_right)
 
